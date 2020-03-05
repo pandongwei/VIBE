@@ -23,6 +23,7 @@ from lib.models.spin import Regressor, hmr
 from lib.models.attention import SelfAttention
 
 
+
 class TemporalEncoder(nn.Module):
     def __init__(
             self,
@@ -254,23 +255,37 @@ class VIBE_Demo(nn.Module):
 
     def forward(self, input, J_regressor=None):
         # input size NTF
-        batch_size, seqlen, nc, h, w = input.shape
-
+        batch_size, seqlen, nc, h, w = input.shape  # (1,300,3,224,224)
+        # print('original shape: ',input.shape)
         feature = self.hmr.feature_extractor(input.reshape(-1, nc, h, w))
-
+        #print('after feature extractor, shape: ',feature.shape)
         if not self.disable_temporal:
             feature = feature.reshape(batch_size, seqlen, -1)
             feature = self.encoder(feature)
             feature = feature.reshape(-1, feature.size(-1))
-
+        #print('after temporal encoder, shape: ',feature.shape)
 
         smpl_output = self.regressor(feature, J_regressor=J_regressor)
 
         for s in smpl_output:
+            #print('after regressor: ', s['theta'].shape,s['verts'].shape, s['kp_2d'].shape,s['kp_3d'].shape, s['rotmat'].shape)
             s['theta'] = s['theta'].reshape(batch_size, seqlen, -1)
             s['verts'] = s['verts'].reshape(batch_size, seqlen, -1, 3)
             s['kp_2d'] = s['kp_2d'].reshape(batch_size, seqlen, -1, 2)
             s['kp_3d'] = s['kp_3d'].reshape(batch_size, seqlen, -1, 3)
             s['rotmat'] = s['rotmat'].reshape(batch_size, seqlen, -1, 3, 3)
-
+            #print('after regressor: ', s['theta'].shape,s['verts'].shape, s['kp_2d'].shape,s['kp_3d'].shape, s['rotmat'].shape)
         return smpl_output
+
+if __name__ == '__main__':
+    #os.environ["CUDA_VISIBLE_DEVICES"] = "0"  ## todo
+    device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+    model = VIBE_Demo(
+        seqlen=16,
+        n_layers=2,
+        hidden_size=1024,
+        add_linear=True,
+        use_residual=True,
+    ).to(device)
+    from torchsummary import summary
+    summary(model,(300,3,224,224),batch_size=1)

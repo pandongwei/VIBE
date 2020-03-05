@@ -40,7 +40,7 @@ def run_openpose(
         '--render_pose', str(render),
         '--video', video_file,
         '--write_json', output_folder,
-        '--display', str(display)
+        '--ef', str(display)
     ]
 
     print('Executing', ' '.join(cmd))

@@ -33,7 +33,7 @@ class Inference(Dataset):
             if x.endswith('.png') or x.endswith('.jpg')
         ]
         self.image_file_names = sorted(self.image_file_names)
-        self.image_file_names = np.array(self.image_file_names)[frames]
+        self.image_file_names = np.array(self.image_file_names)[frames] # 选出有这个人的frames
         self.bboxes = bboxes
         self.joints2d = joints2d
         self.scale = scale
@@ -58,7 +58,7 @@ class Inference(Dataset):
     def __getitem__(self, idx):
         img = cv2.cvtColor(cv2.imread(self.image_file_names[idx]), cv2.COLOR_BGR2RGB)
 
-        bbox = self.bboxes[idx]
+        bbox = self.bboxes[idx]  # shape: (4,)
 
         j2d = self.joints2d[idx] if self.has_keypoints else None
 

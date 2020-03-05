@@ -115,7 +115,7 @@ class Renderer():
         else:
             render_flags = RenderFlags.RGBA
 
-        rgb, _ = self.renderer.render(self.scene, flags=render_flags)
+        rgb, _ = self.renderer.render(self.scene, flags=render_flags)  # 为何用的还是CPU
         valid_mask = (rgb[:, :, -1] > 0)[:, :, np.newaxis]
         output_img = rgb[:, :, :-1] * valid_mask + (1 - valid_mask) * img
         image = output_img.astype(np.uint8)

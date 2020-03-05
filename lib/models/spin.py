@@ -13,6 +13,7 @@ import torchvision.models.resnet as resnet
 
 from lib.utils.geometry import rotation_matrix_to_angle_axis
 
+
 # Map joints to SMPL joints
 JOINT_MAP = {
 'OP Nose': 24, 'OP Neck': 12, 'OP RShoulder': 17,
@@ -90,6 +91,7 @@ def rot6d_to_rotmat_spin(x):
     return torch.stack((b1, b2, b3), dim=-1)
 
 def rot6d_to_rotmat(x):
+    # 从6d的向量转化成3X3的矩阵形式
     x = x.view(-1,3,2)
 
     # Normalize the first vector
@@ -171,7 +173,7 @@ class HMR(nn.Module):
         self.drop1 = nn.Dropout()
         self.fc2 = nn.Linear(1024, 1024)
         self.drop2 = nn.Dropout()
-        self.decpose = nn.Linear(1024, npose)
+        self.decpose = nn.Linear(1024, npose) #24*6
         self.decshape = nn.Linear(1024, 10)
         self.deccam = nn.Linear(1024, 3)
         nn.init.xavier_uniform_(self.decpose.weight, gain=0.01)
@@ -243,7 +245,7 @@ class HMR(nn.Module):
             init_shape = self.init_shape.expand(batch_size, -1)
         if init_cam is None:
             init_cam = self.init_cam.expand(batch_size, -1)
-
+        #feature extractor
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
@@ -257,10 +259,12 @@ class HMR(nn.Module):
         xf = self.avgpool(x4)
         xf = xf.view(xf.size(0), -1)
 
+        #regressor
         pred_pose = init_pose
         pred_shape = init_shape
         pred_cam = init_cam
         for i in range(n_iter):
+            # concatenate the feature and init SMPL parameters
             xc = torch.cat([xf, pred_pose, pred_shape, pred_cam], 1)
             xc = self.fc1(xc)
             xc = self.drop1(xc)
@@ -272,6 +276,7 @@ class HMR(nn.Module):
 
         pred_rotmat = rot6d_to_rotmat(pred_pose).view(batch_size, 24, 3, 3)
 
+        #85维参数输入，得到输出
         pred_output = self.smpl(
             betas=pred_shape,
             body_pose=pred_rotmat[:, 1:],
@@ -281,9 +286,9 @@ class HMR(nn.Module):
 
         pred_vertices = pred_output.vertices
         pred_joints = pred_output.joints
-
+        # 重投影
         pred_keypoints_2d = projection(pred_joints, pred_cam)
-
+        # 从一般的rotation matrix 3*4 得到欧拉角表示的旋转
         pose = rotation_matrix_to_angle_axis(pred_rotmat.reshape(-1, 3, 3)).reshape(-1, 72)
 
         output = [{

@@ -16,6 +16,8 @@
 
 import os
 os.environ['PYOPENGL_PLATFORM'] = 'egl'
+os.environ['EGL_DEVICE_ID'] = '1'
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"  ## todo
 
 import cv2
 import time
@@ -48,7 +50,7 @@ from lib.utils.demo_utils import (
 MIN_NUM_FRAMES = 25
 
 def main(args):
-    device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     video_file = args.vid_file
 
@@ -68,8 +70,8 @@ def main(args):
     output_path = os.path.join(args.output_folder, os.path.basename(video_file).replace('.mp4', ''))
     os.makedirs(output_path, exist_ok=True)
 
-    image_folder, num_frames, img_shape = video_to_images(video_file, return_info=True)
-
+    image_folder, num_frames, img_shape = video_to_images(video_file, img_folder='tmp/sample_video/',return_info=True)
+    # 把图片都存放到image folder中
     print(f'Input video number of frames {num_frames}')
     orig_height, orig_width = img_shape[:2]
 
@@ -92,7 +94,6 @@ def main(args):
             yolo_img_size=args.yolo_img_size,
         )
         tracking_results = mot(image_folder)
-
     # remove tracklets if num_frames is less than MIN_NUM_FRAMES
     for person_id in list(tracking_results.keys()):
         if tracking_results[person_id]['frames'].shape[0] < MIN_NUM_FRAMES:
@@ -124,7 +125,8 @@ def main(args):
         bboxes = joints2d = None
 
         if args.tracking_method == 'bbox':
-            bboxes = tracking_results[person_id]['bbox']
+            bboxes = tracking_results[person_id]['bbox']  #shape:(502,4)
+            #print('bboxes.shape:  ', bboxes.shape)
         elif args.tracking_method == 'pose':
             joints2d = tracking_results[person_id]['joints2d']
 
@@ -137,8 +139,8 @@ def main(args):
             joints2d=joints2d,
             scale=bbox_scale,
         )
-
         bboxes = dataset.bboxes
+        #print('bboxes:  ', bboxes#)
         frames = dataset.frames
         has_keypoints = True if joints2d is not None else False
 
@@ -210,19 +212,20 @@ def main(args):
             print('[WARNING] Continuing without running Temporal SMPLify!..')
 
         # ========= Save results to a pickle file ========= #
+
         pred_cam = pred_cam.cpu().numpy()
+        #print('pred_cam:  ', pred_cam)
         pred_verts = pred_verts.cpu().numpy()
         pred_pose = pred_pose.cpu().numpy()
         pred_betas = pred_betas.cpu().numpy()
         pred_joints3d = pred_joints3d.cpu().numpy()
-
+        #print('11111111111',bboxes)
         orig_cam = convert_crop_cam_to_orig_img(
             cam=pred_cam,
             bbox=bboxes,
             img_width=orig_width,
             img_height=orig_height
         )
-
         output_dict = {
             'pred_cam': pred_cam,
             'orig_cam': orig_cam,
@@ -238,7 +241,8 @@ def main(args):
         vibe_results[person_id] = output_dict
 
     del model
-
+    #print('vibe_results orig_cam:  ', vibe_results[1]['orig_cam'])
+    #print('vibe_results pose:  ', vibe_results[1]['pose'])
     end = time.time()
     fps = num_frames / (end - vibe_time)
 
@@ -262,6 +266,7 @@ def main(args):
 
         # prepare results for rendering
         frame_results = prepare_rendering_results(vibe_results, num_frames)
+        #print('frame_results', frame_results)
         mesh_color = {k: colorsys.hsv_to_rgb(np.random.rand(), 0.5, 1.0) for k in vibe_results.keys()}
 
         image_file_names = sorted([
@@ -297,7 +302,6 @@ def main(args):
                     color=mc,
                     mesh_filename=mesh_filename,
                 )
-
                 if args.sideview:
                     side_img = renderer.render(
                         side_img,
@@ -336,10 +340,10 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--vid_file', type=str,
+    parser.add_argument('--vid_file', type=str, default='sample_video.mp4',
                         help='input video path or youtube link')
 
-    parser.add_argument('--output_folder', type=str,
+    parser.add_argument('--output_folder', type=str,default='output/',
                         help='output folder to write results')
 
     parser.add_argument('--tracking_method', type=str, default='bbox', choices=['bbox', 'pose'],
@@ -352,13 +356,13 @@ if __name__ == '__main__':
                         help='input image size for yolo detector')
 
     parser.add_argument('--tracker_batch_size', type=int, default=12,
-                        help='batch size of object detector used for bbox tracking')
+                        help='batch size of object detector used for bbox tracking') #12
 
-    parser.add_argument('--staf_dir', type=str, default='/home/mkocabas/developments/openposetrack',
+    parser.add_argument('--staf_dir', type=str, default='/home/pan/repository/human-model-reconstruction/openpose',
                         help='path to directory STAF pose tracking method installed.')
 
     parser.add_argument('--vibe_batch_size', type=int, default=450,
-                        help='batch size of VIBE')
+                        help='batch size of VIBE') #450
 
     parser.add_argument('--display', action='store_true',
                         help='visualize the results of each step during demo')
